@@ -1,0 +1,116 @@
+use asr::{
+    emulator::{self, ps2::Emulator}, 
+    timer::{pause_game_time, resume_game_time}};
+
+use std::collections::HashMap;
+
+// supported game versions, (remix only for now)
+#[derive(Eq, Hash, PartialEq)]
+pub enum Version {
+    V1_NTSC,
+    V1_NTSCJ,
+    V1_PAL,
+    V2_NTSC,   
+    V2_NTSCJ,
+    V2_PAL,
+    REMIX_NTSCJ,
+    REMIX_PAL,
+    REMIX_NTSC
+}
+
+// game variables we want to track
+#[derive(Eq, Hash, PartialEq)]
+pub enum GameVariables {
+    VERSION,
+    LOADING,
+}
+
+pub struct Game<'a> {
+    pub loading: u32,
+    pub version: Version,
+    pub pointers: HashMap<Version, HashMap<GameVariables, u32>>,
+    pub process: &'a Emulator
+}
+
+// just a macro to make adding pointers easier
+macro_rules! ap {
+    ($s:ident [$ver:ident][$var:ident] = $addr:expr) => {{
+        $s.pointers
+            .entry(Version::$ver)
+            .or_insert_with(std::collections::HashMap::new)
+            .insert(GameVariables::$var, $addr);
+    }};
+}
+
+// get value from PS2 memory
+macro_rules! get_value {
+    ($s:ident, $var:ident, $t:ty) => {{
+        $s.pointers
+            .get(&$s.version)
+            .and_then(|m| m.get(&GameVariables::$var))
+            .and_then(|addr| Emulator::read::<$t>(&$s.process, *addr).ok())
+            .unwrap_or_default()
+    }};
+}
+
+impl<'a> Game<'a> {
+    // run when the game is first loaded
+    pub fn new(emu: &'a Emulator) -> Self {
+        let mut s = Self {
+            loading: 0,
+            version: Version::REMIX_NTSC,
+            pointers: HashMap::new(),
+            process: emu,
+        };
+
+        ap!(s[REMIX_NTSC][LOADING] = 0x6144BC);
+        return s;
+    }
+
+    // runs on each tick
+    pub fn update(&mut self) { 
+        // update all necessary information here
+        //self.update_game_version();
+        self.update_values();
+
+        asr::print_message(&format!("Loading: {}", self.loading));
+
+        self.is_loading();  // pause the game timer if loading
+
+        // add more stuff here when needed
+    }
+
+    // runs when the timer is reset
+    pub fn reset(&mut self) {   
+        todo!("Implement mc3 reset logic");
+    }
+
+    // split the current segment
+    pub fn split(&mut self) {   
+        todo!("Implement mc3 split logic");
+    }
+
+    // returns true if the game is currently loading
+    pub fn is_loading(&self) -> bool { 
+        if self.loading != 0 {
+            pause_game_time();
+            return true;
+        } else {
+            resume_game_time();
+            return false;
+        }
+    }
+
+    // logic to determine and set the game version
+    fn update_game_version(&mut self) { 
+        todo!("Implement game version detection logic");
+    }
+
+    // logic to read and update game values from memory
+    fn update_values(&mut self) { 
+        //self.loading = Emulator::read::<bool>(&self.process, 0x6144BC).unwrap_or(true);
+        self.loading = get_value!(self, LOADING, u32);
+
+        // add more values here when needed
+    }
+}
