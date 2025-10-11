@@ -1,6 +1,6 @@
 # mc3splitter
 
-An auto splitter for Pcsx2 qt.
+An auto splitter for Midnight Club 3 DUB Edition (remix only for now).
 
 ## Compilation
 
