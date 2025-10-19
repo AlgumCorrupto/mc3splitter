@@ -1,5 +1,5 @@
 use asr::{
-    emulator::{self, ps2::Emulator}, 
+    emulator::{ps2::Emulator}, 
     timer::{pause_game_time, resume_game_time}};
 
 use std::collections::HashMap;
@@ -21,15 +21,20 @@ pub enum Version {
 // game variables we want to track
 #[derive(Eq, Hash, PartialEq)]
 pub enum GameVariables {
-    VERSION,
-    LOADING,
+    version,
+    loading,
 }
 
 pub struct Game<'a> {
-    pub loading: u32,
+    pub current: State,
+    pub last: State,
     pub version: Version,
     pub pointers: HashMap<Version, HashMap<GameVariables, u32>>,
     pub process: &'a Emulator
+}
+
+pub struct State {
+    pub loading: u32
 }
 
 // just a macro to make adding pointers easier
@@ -53,17 +58,26 @@ macro_rules! get_value {
     }};
 }
 
+macro_rules! update_value {
+    ($s:ident, $field:ident, $ty:ty) => {{
+        $s.last.$field = $s.current.$field;
+        $s.current.$field = get_value!($s, $field, $ty);
+    }};
+}
+
+
 impl<'a> Game<'a> {
     // run when the game is first loaded
     pub fn new(emu: &'a Emulator) -> Self {
         let mut s = Self {
-            loading: 0,
+            current: State {loading: 0},
+            last: State {loading: 0},
             version: Version::REMIX_NTSC,
             pointers: HashMap::new(),
             process: emu,
         };
 
-        ap!(s[REMIX_NTSC][LOADING] = 0x6144BC);
+        ap!{s[REMIX_NTSC][loading] = 0x6144BC};
         return s;
     }
 
@@ -72,8 +86,6 @@ impl<'a> Game<'a> {
         // update all necessary information here
         //self.update_game_version();
         self.update_values();
-
-        asr::print_message(&format!("Loading: {}", self.loading));
 
         self.is_loading();  // pause the game timer if loading
 
@@ -91,13 +103,15 @@ impl<'a> Game<'a> {
     }
 
     // returns true if the game is currently loading
-    pub fn is_loading(&self) -> bool { 
-        if self.loading != 0 {
+    pub fn is_loading(&self) {
+        if self.current.loading == self.last.loading {
+            return;
+        }
+
+        if self.current.loading != 0 {
             pause_game_time();
-            return true;
         } else {
             resume_game_time();
-            return false;
         }
     }
 
@@ -108,9 +122,7 @@ impl<'a> Game<'a> {
 
     // logic to read and update game values from memory
     fn update_values(&mut self) { 
-        //self.loading = Emulator::read::<bool>(&self.process, 0x6144BC).unwrap_or(true);
-        self.loading = get_value!(self, LOADING, u32);
-
+        update_value!(self, loading, u32);
         // add more values here when needed
     }
 }
